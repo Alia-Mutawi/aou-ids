@@ -9,8 +9,7 @@ st.set_page_config(page_title="IoT IDS Dashboard", layout="wide")
 st.title("🛡️ نظام كشف التسلل (IDS) لشبكات إنترنت الأشياء")
 st.markdown("لوحة تحكم تفاعلية لمراقبة تدفقات الشبكة واكتشاف هجمات **Botnet** و **Slowloris** باستخدام النموذج الخفيف المطور.")
 
-# مسار مجلد الملفات الحقيقي في كاجل (أو اتركه هكذا للرفع على غيت هاب)
-ARTIFACT_DIR = 'ids_revised_artifacts'
+
 
 @st.cache_resource
 def load_artifacts():
