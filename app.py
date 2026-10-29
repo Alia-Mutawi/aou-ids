@@ -1,111 +1,97 @@
-import streamlit as st
+from taipy.gui import Gui, notify
 import pandas as pd
 import numpy as np
 import joblib
 
-st.set_page_config(page_title="IoT IDS Dashboard", layout="wide")
+# 1. تحميل النموذج والملفات الأساسية
+model = joblib.load('xgb_lightweight_final.pkl')
+scaler = joblib.load('light_scaler.pkl')
+features = joblib.load('top10_features.pkl')
+encoder = joblib.load('label_encoder.pkl')
 
-st.title("🛡️ IoT Intrusion Detection System (IDS)")
-st.markdown("Interactive dashboard for monitoring network flows and detecting **Botnet** and **Slowloris** attacks using the optimized lightweight model.")
+# 2. تهيئة المتغيرات (State Variables)
+file_path = None
+data_table = pd.DataFrame(columns=features) # جدول فارغ مبدئياً
+total_flows = 0
+num_benign = 0
+num_attacks = 0
+status_message = "Waiting for data..."
 
-@st.cache_resource
-def load_artifacts():
-    model = joblib.load('xgb_lightweight_final.pkl')
-    scaler = joblib.load('light_scaler.pkl')
-    features = joblib.load('top10_features.pkl')
-    encoder = joblib.load('label_encoder.pkl')
-    return model, scaler, features, encoder
-
-try:
-    model, scaler, features, encoder = load_artifacts()
-    st.sidebar.success("✅ Model and artifacts loaded successfully!")
-except Exception as e:
-    st.sidebar.error(f"⚠️ Error loading artifacts: {e}")
-
-tab1, tab2 = st.tabs(["📝 Single Flow Manual Input", "📁 Batch CSV File Analysis"])
-
-with tab1:
-    st.header("Enter Top 10 Flow Features")
-    user_inputs = []
-    
-    cols = st.columns(2)
-    for i, feat in enumerate(features):
-        with cols[i % 2]:
-            val = st.number_input(f"{feat}", value=0.0, format="%.4f")
-            user_inputs.append(val)
+# 3. دالة التحليل التي تعمل عند رفع الملف
+def analyze_csv(state):
+    if state.file_path:
+        notify(state, 'info', "Analyzing network flows...")
         
-    if st.button("🔍 Analyze Network Flow"):
-        input_array = np.array([user_inputs])
-        scaled_input = scaler.transform(input_array)
+        # قراءة البيانات
+        df = pd.read_csv(state.file_path)
         
-        prediction_num = model.predict(scaled_input)[0]
-        prediction_label = encoder.inverse_transform([prediction_num])[0]
-        
-        st.divider()
-        if prediction_label == 'BENIGN':
-            st.success("✅ **Traffic is BENIGN.** No current threats detected.")
-        elif prediction_label == 'Bot':
-            st.error("🚨 **CRITICAL ALERT: Botnet Attack Detected!**")
-            st.warning("Recommended Action: Isolate the affected IoT node from the network immediately.")
-        elif prediction_label == 'DoS_Slowloris':
-            st.error("🚨 **CRITICAL ALERT: DoS Slowloris Attack Detected!**")
-            st.warning("Recommended Action: Enable web server protection and decrease connection timeout limits.")
+        try:
+            # التحقق من الخصائص وتطبيق النموذج
+            data_top = df[features]
+            scaled_data = scaler.transform(data_top)
+            preds = model.predict(scaled_data)
+            
+            # حفظ النتائج
+            df['Predicted_Label'] = encoder.inverse_transform(preds)
+            state.data_table = df
+            
+            # حساب الإحصائيات للوحة التحكم
+            state.total_flows = len(df)
+            attacks_df = df[df['Predicted_Label'] != 'BENIGN']
+            state.num_attacks = len(attacks_df)
+            state.num_benign = state.total_flows - state.num_attacks
+            
+            # تحديث حالة النظام
+            if state.num_attacks > 0:
+                state.status_message = f"🚨 WARNING: {state.num_attacks} malicious flows detected!"
+                notify(state, 'error', "Threats Detected!")
+            else:
+                state.status_message = "✅ System Secure. All flows are clean."
+                notify(state, 'success', "System Secure")
+                
+        except Exception as e:
+            notify(state, 'error', f"Missing features in CSV: {e}")
 
-with tab2:
-    st.header("Batch Network Flow Analysis & Security Alerts")
-    uploaded_file = st.file_uploader("Upload a CSV file containing flow features", type=["csv"])
-    
-    if uploaded_file is not None:
-        data = pd.read_csv(uploaded_file)
-        st.write("Uploaded Data Preview:", data.head())
-        
-        if st.button("📊 Run Security Analysis"):
-            try:
-                # 1. التأكد من أخذ الأعمدة بالترتيب الصحيح الذي يطلبه النموذج
-                data_top = data[list(features)]
-                
-                # 2. تطبيق المقياس (Scaler)
-                scaled_data = scaler.transform(data_top)
-                
-                # 3. التنبؤ
-                preds_num = model.predict(scaled_data)
-                data['Predicted_Label'] = encoder.inverse_transform(preds_num)
-                
-                # 4. حساب الإحصائيات
-                total_flows = len(data)
-                attacks = data[data['Predicted_Label'] != 'BENIGN']
-                num_attacks = len(attacks)
-                num_benign = total_flows - num_attacks
-                
-                bot_count = len(data[data['Predicted_Label'] == 'Bot'])
-                slow_count = len(data[data['Predicted_Label'] == 'DoS_Slowloris'])
-                
-                st.divider()
-                st.subheader("🚨 Security Incident Summary")
-                
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Total Flows Analyzed", total_flows)
-                col2.metric("Benign Traffic", num_benign, delta="Safe")
-                col3.metric("Detected Attacks", num_attacks, delta=f"-{num_attacks} Threats" if num_attacks > 0 else "Secure", delta_color="inverse")
-                
-                if num_attacks > 0:
-                    st.error(f"⚠️ **WARNING: {num_attacks} malicious network flows detected!**")
-                    if bot_count > 0:
-                        st.warning(f"🔴 **Botnet Flows:** {bot_count} flows identified. Immediate node isolation recommended.")
-                    if slow_count > 0:
-                        st.warning(f"🟠 **DoS Slowloris Flows:** {slow_count} flows identified. Check web server timeouts.")
-                else:
-                    st.success("✅ **All network flows are clean and secure!**")
-                
-                st.subheader("Detailed Analysis Results")
-                st.dataframe(data)
-                
-                csv_result = data.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
-                
-            except Exception as e:
-                st.error(f"Error during analysis: {e}")
-                csv_result = data.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
-            except Exception as e:
-                st.error(f"Please ensure the CSV file contains the required features: {e}")
+# 4. تصميم واجهة المستخدم (Taipy Markdown)
+page = """
+<|text-center|
+# 🛡️ IoT Intrusion Detection System
+**Advanced Network Flow Analysis Dashboard**
+|>
+
+---
+
+### 📁 Upload Network Traffic Data (CSV)
+<|{file_path}|file_selector|label=Select CSV File|extensions=.csv|on_action=analyze_csv|>
+
+<br/>
+
+<|layout|columns=1 1 1|
+<|card|
+### Total Flows
+## <|{total_flows}|>
+|>
+
+<|card|
+### Safe (BENIGN)
+## <|{num_benign}|>
+|>
+
+<|card|
+### Detected Attacks
+## <|{num_attacks}|>
+|>
+|>
+
+<br/>
+<|{status_message}|text|class_name=h3|>
+
+---
+
+### 📊 Detailed Flow Analysis
+<|{data_table}|table|page_size=10|rebuild|>
+"""
+
+if __name__ == "__main__":
+    # تشغيل التطبيق (مع السماح للمنصات السحابية بالوصول)
+    Gui(page=page).run(title="IoT IDS Dashboard", host="0.0.0.0", port=7860, dark_mode=True, use_reloader=False)
