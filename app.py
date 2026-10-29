@@ -2,22 +2,19 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import os
 
 st.set_page_config(page_title="IoT IDS Dashboard", layout="wide")
 
 st.title("🛡️ نظام كشف التسلل (IDS) لشبكات إنترنت الأشياء")
 st.markdown("لوحة تحكم تفاعلية لمراقبة تدفقات الشبكة واكتشاف هجمات **Botnet** و **Slowloris** باستخدام النموذج الخفيف المطور.")
 
-
-
 @st.cache_resource
 def load_artifacts():
-    # تحميل الملفات من المجلد الصحيح
-    model = joblib.load(os.path.join(ARTIFACT_DIR, 'xgb_lightweight_final.pkl'))
-    scaler = joblib.load(os.path.join(ARTIFACT_DIR, 'light_scaler.pkl'))
-    features = joblib.load(os.path.join(ARTIFACT_DIR, 'top10_features.pkl'))
-    encoder = joblib.load(os.path.join(ARTIFACT_DIR, 'label_encoder.pkl'))
+    # تحميل الملفات مباشرة من المجلد الرئيسي بدون مجلدات فرعية
+    model = joblib.load('xgb_lightweight_final.pkl')
+    scaler = joblib.load('light_scaler.pkl')
+    features = joblib.load('top10_features.pkl')
+    encoder = joblib.load('label_encoder.pkl')
     return model, scaler, features, encoder
 
 try:
@@ -32,7 +29,6 @@ with tab1:
     st.header("إدخال خصائص التدفق (Top 10 Features)")
     user_inputs = []
     
-    # تقسيم الحقول إلى أعمدة لتصبح الواجهة مرتبة
     cols = st.columns(2)
     for i, feat in enumerate(features):
         with cols[i % 2]:
@@ -74,6 +70,10 @@ with tab2:
                 st.success("تم تحليل الملف بنجاح!")
                 st.dataframe(data)
                 
+                csv_result = data.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 تنزيل تقرير التحليل (CSV)", data=csv_result, file_name="ids_analysis_report.csv", mime="text/csv")
+            except Exception as e:
+                st.error(f"تأكد من أن الملف يحتوي على الخصائص المطلوبة: {e}")
                 csv_result = data.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 تنزيل تقرير التحليل (CSV)", data=csv_result, file_name="ids_analysis_report.csv", mime="text/csv")
             except Exception as e:
