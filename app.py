@@ -54,22 +54,24 @@ with tab1:
 with tab2:
     st.header("Batch Network Flow Analysis & Security Alerts")
     uploaded_file = st.file_uploader("Upload a CSV file containing flow features", type=["csv"])
+    
     if uploaded_file is not None:
         data = pd.read_csv(uploaded_file)
         st.write("Uploaded Data Preview:", data.head())
         
         if st.button("📊 Run Security Analysis"):
             try:
-                # التأكد من ترتيب الأعمدة تماماً كما يحتاجها النموذج
+                # 1. التأكد من أخذ الأعمدة بالترتيب الصحيح الذي يطلبه النموذج
                 data_top = data[list(features)]
+                
+                # 2. تطبيق المقياس (Scaler)
                 scaled_data = scaler.transform(data_top)
                 
+                # 3. التنبؤ
                 preds_num = model.predict(scaled_data)
                 data['Predicted_Label'] = encoder.inverse_transform(preds_num)
                 
-                # طباعة الأرقام المتنبأ بها للتأكد
-                st.write("🔍 Debug - Unique Predictions Found:", np.unique(preds_num))
-                
+                # 4. حساب الإحصائيات
                 total_flows = len(data)
                 attacks = data[data['Predicted_Label'] != 'BENIGN']
                 num_attacks = len(attacks)
@@ -98,6 +100,11 @@ with tab2:
                 st.subheader("Detailed Analysis Results")
                 st.dataframe(data)
                 
+                csv_result = data.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
+                
+            except Exception as e:
+                st.error(f"Error during analysis: {e}")
                 csv_result = data.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
             except Exception as e:
