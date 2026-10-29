@@ -5,7 +5,7 @@ import joblib
 
 st.set_page_config(page_title="IoT IDS Dashboard", layout="wide")
 
-st.title("🛡️ IoT Intrusion Detection System (IDS)")
+st.title("🛡️Intrusion Detection System (IDS)")
 st.markdown("Interactive dashboard for monitoring network flows and detecting **Botnet** and **Slowloris** attacks using the optimized lightweight model.")
 
 @st.cache_resource
