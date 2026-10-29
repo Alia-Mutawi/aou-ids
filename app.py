@@ -5,12 +5,11 @@ import joblib
 
 st.set_page_config(page_title="IoT IDS Dashboard", layout="wide")
 
-st.title("🛡️ نظام كشف التسلل (IDS) لشبكات إنترنت الأشياء")
-st.markdown("لوحة تحكم تفاعلية لمراقبة تدفقات الشبكة واكتشاف هجمات **Botnet** و **Slowloris** باستخدام النموذج الخفيف المطور.")
+st.title("🛡️ IoT Intrusion Detection System (IDS)")
+st.markdown("Interactive dashboard for monitoring network flows and detecting **Botnet** and **Slowloris** attacks using the optimized lightweight model.")
 
 @st.cache_resource
 def load_artifacts():
-    # تحميل الملفات مباشرة من المجلد الرئيسي بدون مجلدات فرعية
     model = joblib.load('xgb_lightweight_final.pkl')
     scaler = joblib.load('light_scaler.pkl')
     features = joblib.load('top10_features.pkl')
@@ -19,14 +18,14 @@ def load_artifacts():
 
 try:
     model, scaler, features, encoder = load_artifacts()
-    st.sidebar.success("✅ تم تحميل النموذج والملفات بنجاح!")
+    st.sidebar.success("✅ Model and artifacts loaded successfully!")
 except Exception as e:
-    st.sidebar.error(f"⚠️ خطأ في تحميل الملفات: {e}")
+    st.sidebar.error(f"⚠️ Error loading artifacts: {e}")
 
-tab1, tab2 = st.tabs(["📝 إدخال يدوي لتدفق واحد", "📁 رفع ملف تدفقات CSV"])
+tab1, tab2 = st.tabs(["📝 Single Flow Manual Input", "📁 Batch CSV File Analysis"])
 
 with tab1:
-    st.header("إدخال خصائص التدفق (Top 10 Features)")
+    st.header("Enter Top 10 Flow Features")
     user_inputs = []
     
     cols = st.columns(2)
@@ -35,7 +34,7 @@ with tab1:
             val = st.number_input(f"{feat}", value=0.0, format="%.4f")
             user_inputs.append(val)
         
-    if st.button("🔍 فحص حركة المرور (Analyze Flow)"):
+    if st.button("🔍 Analyze Network Flow"):
         input_array = np.array([user_inputs])
         scaled_input = scaler.transform(input_array)
         
@@ -44,22 +43,22 @@ with tab1:
         
         st.divider()
         if prediction_label == 'BENIGN':
-            st.success("✅ **حركة المرور طبيعية (BENIGN).** لا يوجد تهديد حالي.")
+            st.success("✅ **Traffic is BENIGN.** No current threats detected.")
         elif prediction_label == 'Bot':
-            st.error("🚨 **تحذير حرج: تم اكتشاف هجوم من نوع Botnet!**")
-            st.warning("الإجراء المقترح: عزل العقدة المصابة في شبكة IoT فوراً.")
+            st.error("🚨 **CRITICAL ALERT: Botnet Attack Detected!**")
+            st.warning("Recommended Action: Isolate the affected IoT node from the network immediately.")
         elif prediction_label == 'DoS_Slowloris':
-            st.error("🚨 **تحذير حرج: تم اكتشاف هجوم من نوع DoS_Slowloris!**")
-            st.warning("الإجراء المقترح: تفعيل حماية خادم الويب وتقليل مهلة الاتصال.")
+            st.error("🚨 **CRITICAL ALERT: DoS Slowloris Attack Detected!**")
+            st.warning("Recommended Action: Enable web server protection and decrease connection timeout limits.")
 
 with tab2:
-    st.header("تحليل ملف تدفقات شبكية")
-    uploaded_file = st.file_uploader("قم برفع ملف CSV يحتوي على الخصائص", type=["csv"])
+    st.header("Batch Network Flow Analysis")
+    uploaded_file = st.file_uploader("Upload a CSV file containing flow features", type=["csv"])
     if uploaded_file is not None:
         data = pd.read_csv(uploaded_file)
-        st.write("معاينة البيانات المرفوعة:", data.head())
+        st.write("Uploaded Data Preview:", data.head())
         
-        if st.button("📊 تحليل الملف كامل"):
+        if st.button("📊 Run Full Analysis"):
             try:
                 data_top = data[features]
                 scaled_data = scaler.transform(data_top)
@@ -67,14 +66,10 @@ with tab2:
                 preds_num = model.predict(scaled_data)
                 data['Predicted_Label'] = encoder.inverse_transform(preds_num)
                 
-                st.success("تم تحليل الملف بنجاح!")
+                st.success("Analysis completed successfully!")
                 st.dataframe(data)
                 
                 csv_result = data.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 تنزيل تقرير التحليل (CSV)", data=csv_result, file_name="ids_analysis_report.csv", mime="text/csv")
+                st.download_button("📥 Download Analysis Report (CSV)", data=csv_result, file_name="ids_analysis_report.csv", mime="text/csv")
             except Exception as e:
-                st.error(f"تأكد من أن الملف يحتوي على الخصائص المطلوبة: {e}")
-                csv_result = data.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 تنزيل تقرير التحليل (CSV)", data=csv_result, file_name="ids_analysis_report.csv", mime="text/csv")
-            except Exception as e:
-                st.error(f"تأكد من أن الملف يحتوي على الخصائص المطلوبة: {e}")
+                st.error(f"Please ensure the CSV file contains the required features: {e}")
