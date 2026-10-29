@@ -11,46 +11,50 @@ encoder = joblib.load('label_encoder.pkl')
 
 # 2. تهيئة المتغيرات (State Variables)
 file_path = None
-data_table = pd.DataFrame(columns=features) # جدول فارغ مبدئياً
+data_table = pd.DataFrame()
 total_flows = 0
 num_benign = 0
 num_attacks = 0
 status_message = "Waiting for data..."
 
-# 3. دالة التحليل التي تعمل عند رفع الملف
+# 3. دالة التحليل المحدثة لتحديث حالة Taipy بوضوح
 def analyze_csv(state):
     if state.file_path:
         notify(state, 'info', "Analyzing network flows...")
         
-        # قراءة البيانات
-        df = pd.read_csv(state.file_path)
-        
         try:
-            # التحقق من الخصائص وتطبيق النموذج
-            data_top = df[features]
+            # قراءة البيانات
+            df = pd.read_csv(state.file_path)
+            
+            # التأكد من أخذ الخصائص بالترتيب الصحيح
+            data_top = df[list(features)]
             scaled_data = scaler.transform(data_top)
             preds = model.predict(scaled_data)
             
-            # حفظ النتائج
+            # تطبيق التنبؤات
             df['Predicted_Label'] = encoder.inverse_transform(preds)
-            state.data_table = df
             
-            # حساب الإحصائيات للوحة التحكم
-            state.total_flows = len(df)
+            # حساب الإحصائيات بدقة
+            t_flows = len(df)
             attacks_df = df[df['Predicted_Label'] != 'BENIGN']
-            state.num_attacks = len(attacks_df)
-            state.num_benign = state.total_flows - state.num_attacks
+            n_attacks = len(attacks_df)
+            n_benign = t_flows - n_attacks
             
-            # تحديث حالة النظام
-            if state.num_attacks > 0:
-                state.status_message = f"🚨 WARNING: {state.num_attacks} malicious flows detected!"
-                notify(state, 'error', "Threats Detected!")
+            # تحديث المتغيرات عبر state لتظهر في الواجهة فوراً
+            state.data_table = df
+            state.total_flows = t_flows
+            state.num_attacks = n_attacks
+            state.num_benign = n_benign
+            
+            if n_attacks > 0:
+                state.status_message = f"🚨 WARNING: {n_attacks} malicious flows detected!"
+                notify(state, 'error', f"Detected {n_attacks} threats!")
             else:
                 state.status_message = "✅ System Secure. All flows are clean."
                 notify(state, 'success', "System Secure")
                 
         except Exception as e:
-            notify(state, 'error', f"Missing features in CSV: {e}")
+            notify(state, 'error', f"Error during analysis: {e}")
 
 # 4. تصميم واجهة المستخدم (Taipy Markdown)
 page = """
@@ -93,5 +97,4 @@ page = """
 """
 
 if __name__ == "__main__":
-    # تشغيل التطبيق (مع السماح للمنصات السحابية بالوصول)
     Gui(page=page).run(title="IoT IDS Dashboard", host="0.0.0.0", port=7860, dark_mode=True, use_reloader=False)
