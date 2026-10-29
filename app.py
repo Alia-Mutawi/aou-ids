@@ -60,11 +60,15 @@ with tab2:
         
         if st.button("📊 Run Security Analysis"):
             try:
-                data_top = data[features]
+                # التأكد من ترتيب الأعمدة تماماً كما يحتاجها النموذج
+                data_top = data[list(features)]
                 scaled_data = scaler.transform(data_top)
                 
                 preds_num = model.predict(scaled_data)
                 data['Predicted_Label'] = encoder.inverse_transform(preds_num)
+                
+                # طباعة الأرقام المتنبأ بها للتأكد
+                st.write("🔍 Debug - Unique Predictions Found:", np.unique(preds_num))
                 
                 total_flows = len(data)
                 attacks = data[data['Predicted_Label'] != 'BENIGN']
@@ -94,10 +98,6 @@ with tab2:
                 st.subheader("Detailed Analysis Results")
                 st.dataframe(data)
                 
-                csv_result = data.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
-            except Exception as e:
-                st.error(f"Please ensure the CSV file contains the required features: {e}")
                 csv_result = data.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
             except Exception as e:
