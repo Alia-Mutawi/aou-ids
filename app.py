@@ -11,14 +11,13 @@ st.markdown("Interactive dashboard for monitoring network flows and detecting **
 @st.cache_resource
 def load_artifacts():
     model = joblib.load('xgb_lightweight_final.pkl')
-    imputer = joblib.load('light_imputer.pkl')  # إضافة الـ imputer المفقود
     scaler = joblib.load('light_scaler.pkl')
     features = joblib.load('top10_features.pkl')
     encoder = joblib.load('label_encoder.pkl')
-    return model, imputer, scaler, features, encoder
+    return model, scaler, features, encoder
 
 try:
-    model, imputer, scaler, features, encoder = load_artifacts()
+    model, scaler, features, encoder = load_artifacts()
     st.sidebar.success("✅ Model and artifacts loaded successfully!")
 except Exception as e:
     st.sidebar.error(f"⚠️ Error loading artifacts: {e}")
@@ -37,8 +36,7 @@ with tab1:
         
     if st.button("🔍 Analyze Network Flow"):
         input_array = np.array([user_inputs])
-        imputed_input = imputer.transform(input_array) # معالجة القيم المفقودة
-        scaled_input = scaler.transform(imputed_input)
+        scaled_input = scaler.transform(input_array)
         
         prediction_num = model.predict(scaled_input)[0]
         prediction_label = encoder.inverse_transform([prediction_num])[0]
@@ -63,13 +61,11 @@ with tab2:
         if st.button("📊 Run Security Analysis"):
             try:
                 data_top = data[features]
-                imputed_data = imputer.transform(data_top) # المعالجة الصحيحة للدفعة
-                scaled_data = scaler.transform(imputed_data)
+                scaled_data = scaler.transform(data_top)
                 
                 preds_num = model.predict(scaled_data)
                 data['Predicted_Label'] = encoder.inverse_transform(preds_num)
                 
-                # حساب إحصائيات التهديدات
                 total_flows = len(data)
                 attacks = data[data['Predicted_Label'] != 'BENIGN']
                 num_attacks = len(attacks)
@@ -98,6 +94,10 @@ with tab2:
                 st.subheader("Detailed Analysis Results")
                 st.dataframe(data)
                 
+                csv_result = data.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
+            except Exception as e:
+                st.error(f"Please ensure the CSV file contains the required features: {e}")
                 csv_result = data.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
             except Exception as e:
