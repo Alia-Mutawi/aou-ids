@@ -5,7 +5,7 @@ import joblib
 
 st.set_page_config(page_title="IoT IDS Dashboard", layout="wide")
 
-st.title("🛡️IoT Intrusion Detection System (IDS)")
+st.title("🛡️ IoT Intrusion Detection System (IDS)")
 st.markdown("Interactive dashboard for monitoring network flows and detecting **Botnet** and **Slowloris** attacks using the optimized lightweight model.")
 
 @st.cache_resource
@@ -52,13 +52,13 @@ with tab1:
             st.warning("Recommended Action: Enable web server protection and decrease connection timeout limits.")
 
 with tab2:
-    st.header("Batch Network Flow Analysis")
+    st.header("Batch Network Flow Analysis & Security Alerts")
     uploaded_file = st.file_uploader("Upload a CSV file containing flow features", type=["csv"])
     if uploaded_file is not None:
         data = pd.read_csv(uploaded_file)
         st.write("Uploaded Data Preview:", data.head())
         
-        if st.button("📊 Run Full Analysis"):
+        if st.button("📊 Run Security Analysis"):
             try:
                 data_top = data[features]
                 scaled_data = scaler.transform(data_top)
@@ -66,9 +66,40 @@ with tab2:
                 preds_num = model.predict(scaled_data)
                 data['Predicted_Label'] = encoder.inverse_transform(preds_num)
                 
-                st.success("Analysis completed successfully!")
+                # حساب إحصائيات التهديدات
+                total_flows = len(data)
+                attacks = data[data['Predicted_Label'] != 'BENIGN']
+                num_attacks = len(attacks)
+                num_benign = total_flows - num_attacks
+                
+                bot_count = len(data[data['Predicted_Label'] == 'Bot'])
+                slow_count = len(data[data['Predicted_Label'] == 'DoS_Slowloris'])
+                
+                st.divider()
+                st.subheader("🚨 Security Incident Summary")
+                
+                # إظهار تنبيهات بصرية حية
+                col1, col2, col3 = st.columns(3)
+                col1.metric("Total Flows Analyzed", total_flows)
+                col2.metric("Benign Traffic", num_benign, delta="Safe")
+                col3.metric("Detected Attacks", num_attacks, delta=f"-{num_attacks} Threats", delta_color="inverse")
+                
+                if num_attacks > 0:
+                    st.error(f"⚠️ **WARNING: {num_attacks} malicious network flows detected!**")
+                    if bot_count > 0:
+                        st.warning(f"🔴 **Botnet Flows:** {bot_count} flows identified. Immediate node isolation recommended.")
+                    if slow_count > 0:
+                        st.warning(f"🟠 **DoS Slowloris Flows:** {slow_count} flows identified. Check web server timeouts.")
+                else:
+                    st.success("✅ **All network flows are clean and secure!**")
+                
+                st.subheader("Detailed Analysis Results")
                 st.dataframe(data)
                 
+                csv_result = data.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Download Security Report (CSV)", data=csv_result, file_name="ids_security_report.csv", mime="text/csv")
+            except Exception as e:
+                st.error(f"Please ensure the CSV file contains the required features: {e}")
                 csv_result = data.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 Download Analysis Report (CSV)", data=csv_result, file_name="ids_analysis_report.csv", mime="text/csv")
             except Exception as e:
